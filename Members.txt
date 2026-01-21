@@ -1,7 +1,7 @@
 DANH SÁCH NHÓM 4
 1. Võ Việt Dũng 
 2. Châu Kỳ
-5. Hà Văn Hòa
+6. Hà Văn Hòa
 =======
 3 vvdung -testing
 =======
