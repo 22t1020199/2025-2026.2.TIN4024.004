@@ -1,74 +1,87 @@
 #include <Arduino.h>
+#include <TM1637Display.h>
 
-/* ===== LED PINS ===== */
-#define RED_LED     25
-#define YELLOW_LED  33
-#define GREEN_LED   32
+// --- 1. CẤU HÌNH CHÂN (Cập nhật theo diagram.json mới nhất) ---
+#define LED_RED     27   // Đèn Đỏ nối chân 27
+#define LED_YELLOW  26   // Đèn Vàng nối chân 26
+#define LED_GREEN   25   // Đèn Xanh nối chân 25
 
-/* ===== LDR ===== */
-#define LDR_PIN 4   // ADC
+#define LED_BLUE    21   // Đèn báo hiệu nối chân 21
+#define BUTTON_PIN  23   // Nút bấm nối chân 23
+#define LDR_PIN     13   // Cảm biến ánh sáng nối chân 13
 
-/* ===== TIME (ms) ===== */
-unsigned long redTime    = 5000;
-unsigned long yellowTime = 3000;
-unsigned long greenTime  = 7000;
+// Cấu hình Màn hình 4 số
+#define CLK_PIN     18 
+#define DIO_PIN     19
 
-unsigned long previousMillis = 0;
-int currentState = 0;
+// Khởi tạo đối tượng màn hình
+TM1637Display display(CLK_PIN, DIO_PIN);
 
 void setup() {
-  pinMode(RED_LED, OUTPUT);
-  pinMode(YELLOW_LED, OUTPUT);
-  pinMode(GREEN_LED, OUTPUT);
-  pinMode(LDR_PIN, INPUT);
-
   Serial.begin(115200);
-  delay(1000);
 
-  digitalWrite(RED_LED, HIGH);
-  Serial.println("SYSTEM START");
+  // Cấu hình các chân đèn là Output
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_YELLOW, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_BLUE, OUTPUT);
+
+  // Cấu hình nút bấm (Quan trọng: Phải dùng INPUT_PULLUP vì sơ đồ nối xuống GND)
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  // Cấu hình màn hình
+  display.setBrightness(7); // Độ sáng cao nhất
+  display.showNumberDec(8888); // Test màn hình lúc khởi động
+  delay(1000);
+  display.clear();
+}
+
+// Hàm đếm ngược tích hợp kiểm tra nút bấm và cảm biến
+void trafficDelay(int seconds, int currentLedPin) {
+  for (int i = seconds; i > 0; i--) {
+    // 1. Hiển thị số giây còn lại lên màn hình LED 7 thanh
+    display.showNumberDec(i);
+    
+    // 2. In thông báo ra Serial Monitor
+    Serial.print("LED Pin ["); Serial.print(currentLedPin);
+    Serial.print("] ON - Time left: "); Serial.println(i);
+
+    // 3. Kiểm tra nút bấm
+    // Vì dùng INPUT_PULLUP, khi bấm nút giá trị sẽ là LOW (0)
+    if (digitalRead(BUTTON_PIN) == LOW) { 
+        digitalWrite(LED_BLUE, HIGH); // Bật đèn xanh dương cảnh báo
+        Serial.println("Warning: Button is pressed!");
+    } else {
+        digitalWrite(LED_BLUE, LOW);  // Tắt đèn xanh dương
+    }
+
+    // 4. Kiểm tra cảm biến ánh sáng
+    int lightValue = analogRead(LDR_PIN);
+    // Serial.print("Light Sensor: "); Serial.println(lightValue); // Bỏ comment nếu muốn xem giá trị
+
+    // 5. Chờ 1 giây (Đây chính là delay thầy yêu cầu)
+    delay(1000); 
+  }
+  // Xóa màn hình khi hết giờ
+  display.clear();
 }
 
 void loop() {
-  unsigned long now = millis();
+  // --- PHA 1: ĐÈN ĐỎ (5 Giây) ---
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_YELLOW, LOW);
+  digitalWrite(LED_GREEN, LOW);
+  trafficDelay(5, LED_RED);
 
-  /* ===== READ LDR ===== */
-  int ldrValue = analogRead(LDR_PIN);
-  Serial.print("LDR = ");
-  Serial.println(ldrValue);
+  // --- PHA 2: ĐÈN VÀNG (3 Giây) ---
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_YELLOW, HIGH);
+  digitalWrite(LED_GREEN, LOW);
+  trafficDelay(3, LED_YELLOW);
 
-  /* ===== NIGHT MODE ===== */
-  if (ldrValue < 1500) {  
-    digitalWrite(RED_LED, LOW);
-    digitalWrite(GREEN_LED, LOW);
-
-    digitalWrite(YELLOW_LED, HIGH);
-    delay(500);
-    digitalWrite(YELLOW_LED, LOW);
-    delay(500);
-    return;
-  }
-
-  /* ===== NORMAL TRAFFIC LIGHT ===== */
-  if (currentState == 0 && now - previousMillis >= redTime) {
-    previousMillis = now;
-    currentState = 1;
-
-    digitalWrite(RED_LED, LOW);
-    digitalWrite(YELLOW_LED, HIGH);
-  }
-  else if (currentState == 1 && now - previousMillis >= yellowTime) {
-    previousMillis = now;
-    currentState = 2;
-
-    digitalWrite(YELLOW_LED, LOW);
-    digitalWrite(GREEN_LED, HIGH);
-  }
-  else if (currentState == 2 && now - previousMillis >= greenTime) {
-    previousMillis = now;
-    currentState = 0;
-
-    digitalWrite(GREEN_LED, LOW);
-    digitalWrite(RED_LED, HIGH);
-  }
+  // --- PHA 3: ĐÈN XANH (7 Giây) ---
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_YELLOW, LOW);
+  digitalWrite(LED_GREEN, HIGH);
+  trafficDelay(7, LED_GREEN);
 }
